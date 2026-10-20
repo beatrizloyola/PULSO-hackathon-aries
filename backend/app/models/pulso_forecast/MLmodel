@@ -1,0 +1,43 @@
+artifact_path: file:///home/euclides/Projetos/faculdade/PULSO-hackathon-aries/backend/mlruns/models/m-09579b905685401885cccec80a66c653/artifacts
+flavors:
+  python_function:
+    cloudpickle_version: 3.1.2
+    code: null
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pyfunc.model
+    python_model: python_model.pkl
+    python_version: 3.12.14
+    streamable: false
+is_signature_from_type_hint: false
+mlflow_version: 3.16.1
+model_id: m-09579b905685401885cccec80a66c653
+model_size_bytes: 3245780
+model_uuid: m-09579b905685401885cccec80a66c653
+prompts: null
+run_id: a2a8536afa98451299d66b5fdaf627f8
+saved_input_example_info:
+  artifact_path: input_example.json
+  pandas_orient: split
+  serving_input_path: serving_input_example.json
+  type: dataframe
+signature:
+  inputs: '[{"type": "double", "name": "casos", "required": true}, {"type": "double",
+    "name": "casos_lag1", "required": true}, {"type": "double", "name": "casos_lag2",
+    "required": true}, {"type": "double", "name": "casos_lag3", "required": true},
+    {"type": "double", "name": "roll4_mean", "required": true}, {"type": "double",
+    "name": "trend", "required": true}, {"type": "double", "name": "chuva_mm", "required":
+    true}, {"type": "double", "name": "chuva_lag2", "required": true}, {"type": "double",
+    "name": "chuva_lag4", "required": true}, {"type": "double", "name": "chuva_roll4",
+    "required": true}, {"type": "double", "name": "temp_media", "required": true},
+    {"type": "double", "name": "temp_max", "required": true}, {"type": "double", "name":
+    "temp_roll4", "required": true}, {"type": "double", "name": "sin_woy", "required":
+    true}, {"type": "double", "name": "cos_woy", "required": true}, {"type": "double",
+    "name": "vuln", "required": true}, {"type": "double", "name": "hist", "required":
+    true}, {"type": "double", "name": "vizinhos_ds", "required": true}]'
+  outputs: '[{"type": "double", "name": "casos_previstos", "required": true}, {"type":
+    "double", "name": "score", "required": true}]'
+  params: '[{"name": "horizonte", "default": 1, "shape": null, "type": "long"}]'
+type_hint_from_example: false
+utc_time_created: '2026-10-01 18:02:39.133292'

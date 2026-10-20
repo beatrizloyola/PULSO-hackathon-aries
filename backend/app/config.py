@@ -54,7 +54,9 @@ XGB_PARAMS = {
 # --- Previsão de casos (forecast) ---
 FORECAST_HORIZONS = [1, 2, 3, 4]
 FORECAST_ANOS = [2024, 2025]
-FORECAST_META_FILE = MODELS_DIR / "forecast_meta.json"
+# Backtest out-of-time: treina com alvo <= corte, avalia nas semanas seguintes.
+FORECAST_BACKTEST_CUTOFF = 202520
+FORECAST_TOP_K = 10  # capacidade de equipes para precisão@K
 # Objetivo count:poisson é apropriado para contagem de casos.
 FORECAST_XGB_PARAMS = {
     "n_estimators": 300,
@@ -65,7 +67,15 @@ FORECAST_XGB_PARAMS = {
     "objective": "count:poisson",
     "random_state": 42,
 }
+# Meia-saturação do mapa casos previstos -> score 0-100. Com este valor,
+# ~5 casos/semana => 50 (Moderado), ~12 => 70 (Alto), ~28 => 85 (Crítico).
+CASOS_MEIA_SATURACAO = 5.0
 
-
-def forecast_model_file(h: int) -> Path:
-    return MODELS_DIR / f"forecast_h{h}.json"
+# --- MLflow ---
+# Treino loga cada run no tracking store; o run aprovado é exportado para
+# FORECAST_MODEL_DIR (commitado) e é isso que a API serve.
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI") or f"sqlite:///{BASE_DIR / 'mlflow.db'}"
+MLFLOW_ARTIFACT_ROOT = BASE_DIR / "mlruns"  # só usado com tracking local (sqlite)
+MLFLOW_EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT") or "pulso-forecast"
+FORECAST_MODEL_DIR = MODELS_DIR / "pulso_forecast"
+FORECAST_META_FILE = MODELS_DIR / "forecast_meta.json"

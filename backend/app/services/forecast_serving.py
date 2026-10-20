@@ -61,6 +61,11 @@ def _parse_semana(semana_id: Optional[str], panel: pd.DataFrame) -> int:
     return int(panel["semana"].max())
 
 
+def _semana_bairros(panel: pd.DataFrame, semana_cod: int) -> pd.DataFrame:
+    # get_featured_panel só mantém semanas com features completas: nada a imputar.
+    return panel[panel["semana"] == semana_cod].copy()
+
+
 def build_prioridades(semana_id: Optional[str] = None,
                       horizon: int = 1) -> Tuple[pd.DataFrame, dict]:
     """
@@ -72,11 +77,11 @@ def build_prioridades(semana_id: Optional[str] = None,
     panel = get_featured_panel()
     semana_cod = _parse_semana(semana_id, panel)
 
-    cur = panel[panel["semana"] == semana_cod].copy()
+    cur = _semana_bairros(panel, semana_cod)
     cur["bairro_nome"] = cur["bairro"]
-    casos_prev = model_svc.predict_casos(cur, horizon=horizon).astype("float64")
-    cur["casos_previstos"] = np.round(casos_prev, 1)
-    cur["score"] = np.round(model_svc.casos_para_score(casos_prev)).astype(int)
+    pred = model_svc.prever(cur, horizon=horizon)
+    cur["casos_previstos"] = pred["casos_previstos"].round(1)
+    cur["score"] = pred["score"].round().astype(int)
 
     # --- componentes (explicabilidade) a partir de sinais REAIS ---
     roll = cur["roll4_mean"].fillna(cur["casos"]).clip(lower=0)
@@ -109,3 +114,22 @@ def build_prioridades(semana_id: Optional[str] = None,
         "dados": data_sync.data_status(int(panel["semana"].max()), panel.attrs.get("snapshot_meta", {})),
     }
     return cur.reset_index(drop=True), meta
+
+
+def explicar_bairro(bairro_id: str, semana_id: Optional[str] = None,
+                    horizon: int = 1) -> Optional[dict]:
+    """Decomposição da previsão do bairro na semana (None se o bairro não existe)."""
+    panel = get_featured_panel()
+    semana_cod = _parse_semana(semana_id, panel)
+    cur = _semana_bairros(panel, semana_cod)
+    row = cur[cur["bairro_id"] == bairro_id]
+    if row.empty:
+        return None
+    return {
+        "bairro_id": bairro_id,
+        "bairro_nome": row["bairro"].iloc[0],
+        "semana_cod": int(semana_cod),
+        "semana_alvo_cod": _semana_alvo(semana_cod, horizon),
+        **model_svc.explicar(row, horizon),
+        "dados": data_sync.data_status(int(panel["semana"].max()), panel.attrs.get("snapshot_meta", {})),
+    }

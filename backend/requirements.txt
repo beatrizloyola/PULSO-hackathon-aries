@@ -12,3 +12,4 @@ aiofiles==24.1.0
 pytest==8.3.4
 scikit-learn==1.5.2
 epiweeks==2.3.0
+mlflow==3.16.1
