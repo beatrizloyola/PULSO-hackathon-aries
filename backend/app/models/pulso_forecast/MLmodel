@@ -1,4 +1,4 @@
-artifact_path: file:///home/euclides/Projetos/faculdade/PULSO-hackathon-aries/backend/mlruns/models/m-09579b905685401885cccec80a66c653/artifacts
+artifact_path: file:///home/euclides/Projects/faculdade/PULSO-hackathon-aries/backend/mlruns/models/m-2408c195bb9f487f987f3265be3bf13b/artifacts
 flavors:
   python_function:
     cloudpickle_version: 3.1.2
@@ -12,11 +12,11 @@ flavors:
     streamable: false
 is_signature_from_type_hint: false
 mlflow_version: 3.16.1
-model_id: m-09579b905685401885cccec80a66c653
-model_size_bytes: 3245780
-model_uuid: m-09579b905685401885cccec80a66c653
+model_id: m-2408c195bb9f487f987f3265be3bf13b
+model_size_bytes: 3238162
+model_uuid: m-2408c195bb9f487f987f3265be3bf13b
 prompts: null
-run_id: a2a8536afa98451299d66b5fdaf627f8
+run_id: dbff822149fb451285d3cba916755eb5
 saved_input_example_info:
   artifact_path: input_example.json
   pandas_orient: split
@@ -40,4 +40,4 @@ signature:
     "double", "name": "score", "required": true}]'
   params: '[{"name": "horizonte", "default": 1, "shape": null, "type": "long"}]'
 type_hint_from_example: false
-utc_time_created: '2026-10-01 18:02:39.133292'
+utc_time_created: '2026-10-20 18:53:59.172811'
