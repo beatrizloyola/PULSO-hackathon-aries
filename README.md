@@ -15,8 +15,8 @@ não a identidade do produto. O sistema recomenda; o profissional decide.
 ## Stack
 
 - **Frontend:** React 19 + Vite, CSS puro. SPA com navegação entre 6 telas controlada por estado.
-- **Backend:** Python (Flask) com XGBoost, pandas, scikit-learn. consome dados reais do CKAN (dengue), APAC (chuva) e GIS (bairros/ZEIS).
-- **ML:** Quatro modelos XGBoost de contagem, com 18 variáveis e horizontes de 1 a 4 semanas. Métricas em `backend/app/models/forecast_meta.json`.
+- **Backend:** Python (Flask) com XGBoost, pandas, MLflow. Dados reais de dengue (SINAN via CKAN), chuva (APAC), temperatura (Open-Meteo) e GIS (bairros/ZEIS).
+- **ML:** XGBoost (`count:poisson`) prevê casos de dengue por bairro em 1–4 semanas, com 18 variáveis; treino rastreado no MLflow e validado no GitHub Actions. Métricas em `backend/app/models/forecast_meta.json`.
 
 ## Como rodar localmente
 
@@ -71,21 +71,30 @@ Acesse o frontend em **http://localhost:5173**. Ele se comunica automaticamente 
 backend/
   app/
     main.py              # servidor Flask (endpoints /prioridade, /mapa, /health)
-    config.py            # fontes, atualização e parâmetros dos modelos
+    config.py            # fontes, atualização, hiperparâmetros, MLflow
     data/
       bairros_lookup.json        # 94 bairros com scores de vulnerabilidade/histórico
       bairros_esig.geojson       # polígonos reais dos bairros (fonte: ESIG)
-      training_data.csv          # dataset de treinamento do modelo
+      cache/                     # SINAN (dengue_ANO.csv) e APAC + temperatura (apac_clima_semana_ANO.csv)
     services/
-      model.py             # XGBoost: treinamento, predição, explicabilidade
+      forecast_features.py # painel semanal alinhado + 18 features
+      forecaster.py        # PulsoForecaster: pipeline pyfunc do MLflow (pickle)
+      forecast_serving.py  # semanas com dados suficientes, ranking e explicação por bairro
+      model.py             # carrega o modelo exportado e classifica o score
+      tracking.py          # configuração do MLflow
       data_sync.py         # coleta periódica APAC/SINAN/temperatura
       apac_client.py       # formulário oficial e leitura das tabelas APAC
-      forecast_features.py # painel semanal alinhado e variáveis do modelo
-      forecast_serving.py  # seleção de semanas com dados suficientes
+      ckan_client.py       # download CKAN Recife (dengue SINAN)
     models/
-      forecast_h1.json     # modelos forecast_h1 a forecast_h4
-      forecast_meta.json   # fontes, período de treino e validação temporal
+      pulso_forecast/      # modelo servido (export de um run do MLflow)
+      forecast_meta.json   # run_id, fontes e métricas de backtest do modelo servido
+  scripts/
+    train_forecast.py      # treina e loga run no MLflow
+    export_model.py        # gate de métricas + export do run para app/models
+    atualizar_dados.py     # coleta manual das fontes
+  tests/                   # pytest (API com o modelo exportado, gate, coleta APAC)
   requirements.txt
+.github/workflows/ml.yml   # CI: treino + gate + testes a cada mudança no backend
 
 src/
   data/
@@ -111,25 +120,51 @@ src/
 
 ## Modelo de priorização (ML)
 
-O PULSO prevê casos por bairro com XGBoost (`count:poisson`). Os 18 sinais
-incluem casos atuais e defasados, tendências, chuva APAC, temperatura de apoio,
-sazonalidade, atributos territoriais e casos dos demais bairros do mesmo DS.
-O índice de prioridade é `100 × casos_previstos / (casos_previstos + 5)`.
+O PULSO prevê **quantos casos de dengue cada um dos 94 bairros terá em t+h
+semanas** (h = 1–4) com um XGBoost Regressor (`count:poisson`) por horizonte,
+treinado em um painel bairro × semana epidemiológica (SINAN 2024–2025 + APAC).
 
-A chuva vem do [portal Dados APAC](http://dados.apac.pe.gov.br:41120/dadosApac/),
+**Features (18, todas com dados ≤ semana t):** casos atuais e lags (1–3),
+média móvel de 4 semanas, tendência; chuva APAC (atual, lags 2 e 4, soma de 4
+semanas); temperatura média/máxima e média de 4 semanas; sazonalidade
+(sen/cos da semana); vulnerabilidade e histórico do bairro; média de casos dos
+outros bairros do mesmo Distrito Sanitário.
+
+**Score:** `100 · casos / (casos + 5)` — absoluto e comparável entre semanas.
+Classificação: Crítico (≥85), Alto (70–84), Moderado (50–69), Baixo (<50).
+
+**Chuva:** vem do [portal Dados APAC](http://dados.apac.pe.gov.br:41120/dadosApac/),
 via Histórico Pluviométrico. O sistema calcula a média diária das estações de
 Recife e soma os sete dias da semana epidemiológica CDC. É uma aproximação
 municipal compartilhada pelos bairros, não uma medição de cada bairro.
 
-A API oferece somente semanas com clima completo, cobertura de notificações e
-histórico suficiente. A seleção inicial usa a última dessas semanas. Se o
-SINAN estiver atrasado, chuva recente não adianta artificialmente a previsão.
-A interface informa fonte, data da coleta e limitações de cobertura.
+**Cobertura:** a API oferece somente semanas com clima completo, cobertura de
+notificações e histórico suficiente. A seleção inicial usa a última dessas
+semanas. Se o SINAN estiver atrasado, chuva recente não adianta
+artificialmente a previsão. A interface informa fonte, data da coleta e
+limitações de cobertura.
 
-A validação temporal compara MAE e precisão@10 com persistência. As métricas
-exibidas vêm do modelo salvo, sem valores fixos no frontend. Atualizar a coleta
-não retreina automaticamente os modelos; o procedimento está em
-[backend/DADOS_APAC.md](backend/DADOS_APAC.md).
+**Explicação** (`POST /prioridade/explicacao`): contribuições SHAP
+(`pred_contribs`) do mesmo modelo que gerou o score, em escala log:
+`exp(base_value + Σ contribuições) = casos_previstos`.
+
+**Métricas:** backtest out-of-time (treina até a semana 2025-20, avalia depois)
+contra a persistência (repetir os casos da semana atual). Valores do modelo
+servido em `backend/app/models/forecast_meta.json`, exibidos pelo frontend.
+
+**Ciclo de vida (MLflow):**
+1. `scripts/train_forecast.py` loga parâmetros, métricas e o pipeline
+   (`PulsoForecaster`, serializado com cloudpickle) em um run.
+2. `scripts/export_model.py` só exporta o run se o XGBoost bater a
+   persistência em MAE e precisão@10 em todos os horizontes; o export vai
+   para `backend/app/models/pulso_forecast` e é commitado.
+3. A API carrega esse diretório com `mlflow.pyfunc.load_model`; `/health`
+   mostra o `run_id` servido.
+4. O workflow `.github/workflows/ml.yml` repete 1–2 e roda os testes em todo
+   PR/push que toca o backend.
+
+Atualizar a coleta não retreina o modelo automaticamente; para promover um
+modelo com dados novos, repita 1–2 (detalhes em [backend/DADOS_APAC.md](backend/DADOS_APAC.md)).
 
 ## Estado global (`PulsoContext`)
 

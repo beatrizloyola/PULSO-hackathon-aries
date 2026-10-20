@@ -26,9 +26,11 @@ CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
 print("🚀 [PULSO Backend] Iniciando...")
 if not config.BAIRROS_LOOKUP_FILE.exists():
     print("   ⚠️  bairros_lookup.json não encontrado.")
-for horizon in config.FORECAST_HORIZONS:
-    if not config.forecast_model_file(horizon).exists():
-        print(f"   ⚠️  modelo do horizonte {horizon} ausente; execute python -m scripts.train_forecast")
+try:
+    model_svc.load_forecaster()
+    print(f"   🤖 Modelo carregado (MLflow run {model_svc.model_run_id()})")
+except FileNotFoundError as e:
+    print(f"   ❌ {e}")
 print("✅ [PULSO Backend] Pronto!")
 data_sync.start_background_sync()
 
@@ -50,11 +52,15 @@ def _to_int(val):
 
 @app.route("/health")
 def health():
-    model_ok = all(config.forecast_model_file(h).exists() for h in config.FORECAST_HORIZONS)
+    try:
+        run_id = model_svc.model_run_id()
+    except FileNotFoundError:
+        run_id = None
     lookup_ok = config.BAIRROS_LOOKUP_FILE.exists()
     return jsonify({
-        "status": "ok" if (model_ok and lookup_ok) else "degraded",
-        "modelo_carregado": model_ok,
+        "status": "ok" if (run_id and lookup_ok) else "degraded",
+        "modelo_carregado": run_id is not None,
+        "modelo_run_id": run_id,
         "bairros_lookup": lookup_ok,
     })
 
@@ -175,13 +181,13 @@ def detalhe_bairro(bairro_id):
 def explicacao():
     req = request.get_json(silent=True) or {}
     bairro_id = req.get("bairro_id")
-    semana_id = req.get("semana_id")
+    if not bairro_id:
+        return jsonify({"error": "bairro_id é obrigatório"}), 400
     horizonte = int(req.get("horizonte", 1))
-    df_features, meta = forecast_serving.build_prioridades(semana_id, horizon=horizonte)
-    result = model_svc.explain_forecast(bairro_id, df_features, horizonte)
-    if "error" in result:
-        return jsonify(result), 404
-    return jsonify({**result, "semana_cod": meta["semana_cod"], "dados": meta["dados"]})
+    result = forecast_serving.explicar_bairro(bairro_id, req.get("semana_id"), horizon=horizonte)
+    if result is None:
+        return jsonify({"error": "Bairro não encontrado"}), 404
+    return jsonify(result)
 
 @app.route("/mapa")
 def mapa_prioridade():

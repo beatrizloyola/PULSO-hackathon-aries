@@ -1,0 +1,68 @@
+name: ML (MLflow)
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/ml.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/ml.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ml-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  treino:
+    name: Treino, gate e testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # Sem secrets: tracking local (sqlite + mlruns/), publicado como artefato.
+      # Com secrets: os runs vão para o servidor MLflow do time.
+      MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+      MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+      MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+      MLFLOW_DISABLE_AGENT_HINT: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Treinar (loga run no MLflow)
+        run: python scripts/train_forecast.py
+
+      - name: Gate de métricas e export
+        run: python scripts/export_model.py
+
+      - name: Testes da API com o modelo exportado
+        run: pytest -q
+
+      - name: Publicar modelo e tracking
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlflow-${{ github.run_id }}
+          path: |
+            backend/app/models/pulso_forecast
+            backend/app/models/forecast_meta.json
+            backend/mlflow.db
+            backend/mlruns
+          if-no-files-found: ignore
