@@ -140,3 +140,25 @@ def casos_para_score(casos) -> np.ndarray:
     """Mapeia casos previstos -> score 0-100 (saturação suave, monotônica)."""
     casos = np.asarray(casos, dtype=float)
     return np.clip(100.0 * casos / (casos + CASOS_MEIA_SATURACAO), 0, 100)
+
+
+def explain_forecast(bairro_id, panel: pd.DataFrame, horizon: int = 1) -> dict:
+    """Contribuições do mesmo modelo Poisson e dados APAC usados no ranking."""
+    from app.services.forecast_features import FEATURES
+    row = panel[panel["bairro_id"] == bairro_id]
+    if row.empty:
+        return {"error": "Bairro não encontrado"}
+    model = load_forecast_model(horizon)
+    matrix = xgb.DMatrix(row[FEATURES])
+    values = model.get_booster().predict(matrix, pred_contribs=True)[0]
+    cases = float(model.predict(row[FEATURES])[0])
+    return {
+        "bairro_id": bairro_id, "horizonte": horizon,
+        "base_value": float(values[-1]),
+        "escala_contribuicoes": "log(casos); exp(base_value + soma das contribuições) = casos previstos",
+        "casos_previstos": round(cases, 1),
+        "predicao_final": round(cases, 1),
+        "score": round(float(casos_para_score(cases))),
+        "contribuicoes": [{"feature": feature, "contribuicao": float(value)}
+                          for feature, value in zip(FEATURES, values[:-1])],
+    }

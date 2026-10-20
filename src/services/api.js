@@ -1,4 +1,4 @@
-// Cliente HTTP para o backend PULSO (FastAPI)
+// Cliente HTTP para o backend PULSO (Flask)
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 async function fetchJSON(path, options = {}) {

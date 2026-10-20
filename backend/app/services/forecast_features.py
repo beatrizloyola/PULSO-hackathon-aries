@@ -1,5 +1,6 @@
 import json
 import unicodedata
+from datetime import date
 from typing import List
 
 import numpy as np
@@ -7,7 +8,7 @@ import pandas as pd
 from epiweeks import Week
 
 from app import config
-from app.services import clima_client
+from app.services import apac_client, data_sync
 
 HORIZONTES = [1, 2, 3, 4]
 
@@ -37,14 +38,10 @@ def _aggregate_sinan(year: int) -> pd.DataFrame:
     """Lê o cache do SINAN e agrega casos por bairro (normalizado) e semana."""
     path = config.CACHE_DIR / f"dengue_{year}.csv"
     df = pd.read_csv(path, sep=";", encoding="utf-8", low_memory=False)
-    df = df[df["ID_MUNICIP"].astype(str).str.contains("261160", na=False)]
-    df["bairro_norm"] = df["NM_BAIRRO"].apply(_norm)
-    df["semana"] = pd.to_numeric(df["SEM_NOT"], errors="coerce")
-    g = df.groupby(["bairro_norm", "semana"]).size().reset_index(name="casos")
-    return g.dropna(subset=["semana"]).astype({"semana": int})
+    return data_sync.normalize_sinan(df)[0]
 
 
-def build_panel(anos: List[int]) -> pd.DataFrame:
+def build_panel(anos: List[int] = None) -> pd.DataFrame:
     lookup = json.load(open(config.BAIRROS_LOOKUP_FILE, encoding="utf-8"))
     bairros = pd.DataFrame([{
         "bairro_id": b["id"], "bairro": b["nome"], "bairro_norm": _norm(b["nome"]),
@@ -52,25 +49,38 @@ def build_panel(anos: List[int]) -> pd.DataFrame:
         "hist": b["historico_score"],
     } for b in lookup])
 
-    casos = pd.concat([_aggregate_sinan(y) for y in anos], ignore_index=True)
-    casos = casos.groupby(["bairro_norm", "semana"], as_index=False)["casos"].sum()
-
-    clima = pd.concat([clima_client.get_clima_semana(y) for y in anos], ignore_index=True)
-    clima = clima.groupby("semana", as_index=False).agg(
-        chuva_mm=("chuva_mm", "sum"),
-        temp_media=("temp_media", "mean"),
-        temp_max=("temp_max", "mean"),
-    )
+    snapshot = data_sync.load_snapshot()
+    if snapshot is not None:
+        casos, clima, meta = snapshot
+        anos = anos or meta["anos_casos"]
+        weeks_with_cases = meta["semanas_casos"]
+    else:
+        meta = {}
+        anos = anos or config.FORECAST_ANOS
+        frames, periods = [], []
+        for year in anos:
+            raw = pd.read_csv(config.CACHE_DIR / f"dengue_{year}.csv", sep=";", low_memory=False)
+            grouped, _, last = data_sync.normalize_sinan(raw)
+            frames.append(grouped)
+            periods.append((date(year, 1, 1), min(last, date(year, 12, 31))))
+        casos = pd.concat(frames).groupby(["bairro_norm", "semana"], as_index=False)["casos"].sum()
+        weeks_with_cases = data_sync.complete_case_weeks(periods)
+        clima = pd.concat([apac_client.get_clima_semana(y) for y in anos], ignore_index=True)
+    if clima["semana"].duplicated().any():
+        raise ValueError("Clima: semanas duplicadas no histórico")
 
     weeks = semana_seq(anos)
     grid = bairros.assign(_k=1).merge(
         pd.DataFrame({"semana": weeks, "_k": 1}), on="_k").drop(columns="_k")
     panel = grid.merge(casos, on=["bairro_norm", "semana"], how="left")
-    panel["casos"] = panel["casos"].fillna(0).astype(int)
+    # Ausência de casos vira zero somente dentro da cobertura publicada.
+    covered = panel["semana"].isin(weeks_with_cases)
+    panel.loc[covered, "casos"] = panel.loc[covered, "casos"].fillna(0)
+    panel.loc[~covered, "casos"] = np.nan
     panel = panel.merge(clima, on="semana", how="left")
-    for c in ("chuva_mm", "temp_media", "temp_max"):
-        panel[c] = panel[c].fillna(panel[c].median() if c != "chuva_mm" else 0.0)
-    return panel.sort_values(["bairro", "semana"]).reset_index(drop=True)
+    panel = panel.sort_values(["bairro", "semana"]).reset_index(drop=True)
+    panel.attrs["snapshot_meta"] = meta
+    return panel
 
 
 def add_features(panel: pd.DataFrame) -> pd.DataFrame:

@@ -15,8 +15,8 @@ não a identidade do produto. O sistema recomenda; o profissional decide.
 ## Stack
 
 - **Frontend:** React 19 + Vite, CSS puro. SPA com navegação entre 6 telas controlada por estado.
-- **Backend:** Python (Flask) com XGBoost, pandas, scikit-learn. consome dados reais do CKAN (dengue), INMET (clima) e GIS (bairros/ZEIS).
-- **ML:** Modelo XGBoost Regressor treinado com 8 features, 94 territórios. MAE ~4.04, R² ~0.87.
+- **Backend:** Python (Flask) com XGBoost, pandas, scikit-learn. consome dados reais do CKAN (dengue), APAC (chuva) e GIS (bairros/ZEIS).
+- **ML:** Quatro modelos XGBoost de contagem, com 18 variáveis e horizontes de 1 a 4 semanas. Métricas em `backend/app/models/forecast_meta.json`.
 
 ## Como rodar localmente
 
@@ -25,7 +25,7 @@ não a identidade do produto. O sistema recomenda; o profissional decide.
 ```bash
 cd backend
 # Criar e ativar ambiente virtual (opcional mas recomendado)
-python -m venv venv
+python3.12 -m venv venv
 source venv/bin/activate  # Linux/Mac
 # venv\Scripts\activate   # Windows
 
@@ -34,11 +34,9 @@ pip install -r requirements.txt
 
 # Rodar o servidor Flask
 python -m app.main
-# ou
-python app/main.py
 ```
 
-O backend sobe em **http://localhost:8000**.
+O backend sobe em **http://localhost:8000** e coleta dados em segundo plano. Veja [coleta, cobertura e testes](backend/DADOS_APAC.md).
 
 ### 2. Frontend (React + Vite)
 
@@ -73,18 +71,20 @@ Acesse o frontend em **http://localhost:5173**. Ele se comunica automaticamente 
 backend/
   app/
     main.py              # servidor Flask (endpoints /prioridade, /mapa, /health)
-    config.py            # URLs CKAN/INMET, paths, hiperparâmetros XGBoost
+    config.py            # fontes, atualização e parâmetros dos modelos
     data/
       bairros_lookup.json        # 94 bairros com scores de vulnerabilidade/histórico
       bairros_esig.geojson       # polígonos reais dos bairros (fonte: ESIG)
       training_data.csv          # dataset de treinamento do modelo
     services/
       model.py             # XGBoost: treinamento, predição, explicabilidade
-      etl.py               # pipeline ETL: coleta, feature engineering
-      ckan_client.py       # consumo CKAN Recife (dengue SINAN)
-      inmet_client.py      # consumo INMET/BDMEP (precipitação)
+      data_sync.py         # coleta periódica APAC/SINAN/temperatura
+      apac_client.py       # formulário oficial e leitura das tabelas APAC
+      forecast_features.py # painel semanal alinhado e variáveis do modelo
+      forecast_serving.py  # seleção de semanas com dados suficientes
     models/
-      xgb_prioridade.json  # modelo serializado
+      forecast_h1.json     # modelos forecast_h1 a forecast_h4
+      forecast_meta.json   # fontes, período de treino e validação temporal
   requirements.txt
 
 src/
@@ -111,28 +111,25 @@ src/
 
 ## Modelo de priorização (ML)
 
-O PULSO emprega um **XGBoost Regressor** para calcular o score de prioridade
-(0–100) de cada um dos 94 bairros do Recife. O modelo é treinado com 8
-features normalizadas:
+O PULSO prevê casos por bairro com XGBoost (`count:poisson`). Os 18 sinais
+incluem casos atuais e defasados, tendências, chuva APAC, temperatura de apoio,
+sazonalidade, atributos territoriais e casos dos demais bairros do mesmo DS.
+O índice de prioridade é `100 × casos_previstos / (casos_previstos + 5)`.
 
-| Feature | Origem |
-|---------|--------|
-| `tendencia_epidemiologica` | Variação % de casos de dengue vs. semana anterior (CKAN/SINAN) |
-| `condicoes_climaticas` | Chuva acumulada normalizada pela média histórica (INMET/BDMEP) |
-| `focos_identificados` | Índice de focos de dengue identificados |
-| `vulnerabilidade_territorial` | Score socioespacial composto (IDH, densidade, ZEIS) |
-| `historico` | Severidade de surtos históricos nos últimos 5 anos |
-| `vizinhos_semana_passada` | Média de casos do Distrito Sanitário (efeito espacial) |
-| `semana_ano` | Semana epidemiológica (sazonalidade) |
-| `ds_encoded` | Identificador do Distrito Sanitário |
+A chuva vem do [portal Dados APAC](http://dados.apac.pe.gov.br:41120/dadosApac/),
+via Histórico Pluviométrico. O sistema calcula a média diária das estações de
+Recife e soma os sete dias da semana epidemiológica CDC. É uma aproximação
+municipal compartilhada pelos bairros, não uma medição de cada bairro.
 
-**Métricas:** MAE ~4.04 pontos | R² ~0.87 | 100 árvores, max_depth=4
+A API oferece somente semanas com clima completo, cobertura de notificações e
+histórico suficiente. A seleção inicial usa a última dessas semanas. Se o
+SINAN estiver atrasado, chuva recente não adianta artificialmente a previsão.
+A interface informa fonte, data da coleta e limitações de cobertura.
 
-**Pipeline ETL:**
-1. Coleta: CKAN (dengue 2025: ~9.187 registros), INMET (estação A0013), lookup local
-2. Feature engineering: normalização para escala [0, 100]
-3. Predição: XGBoost retorna score contínuo
-4. Classificação: Crítico (≥85), Alto (70–84), Moderado (50–69), Baixo (<50)
+A validação temporal compara MAE e precisão@10 com persistência. As métricas
+exibidas vêm do modelo salvo, sem valores fixos no frontend. Atualizar a coleta
+não retreina automaticamente os modelos; o procedimento está em
+[backend/DADOS_APAC.md](backend/DADOS_APAC.md).
 
 ## Estado global (`PulsoContext`)
 
@@ -151,8 +148,7 @@ features normalizadas:
    de risco (94 bairros), Top 8, mapa interativo com polígonos reais dos bairros.
 2. **Prioridades** — Top 3 em cards + tabela de fila de acompanhamento, stepper de
    capacidade.
-3. **Explicação** — decomposição da predição em 5 fatores + barras de contribuição
-   + evolução dos sinais (explicabilidade XAI via pred_contribs).
+3. **Explicação** — componentes epidemiológicos, climáticos e territoriais usados como contexto da priorização.
 4. **Recomendação** — ações checklists por classificação, recursos dinâmicos,
    setores envolvidos, alerta de sobrecarga operacional.
 5. **Planejamento** — stepper de capacidade (1–10); cards de cobertos vs.
@@ -162,5 +158,5 @@ features normalizadas:
 ## Fontes de dados externas
 
 - **CKAN Recife:** https://dados.recife.pe.gov.br — notificações de dengue (SINAN)
-- **INMET/BDMEP:** https://bdmep.inmet.gov.br — precipitação (estação A0013)
+- **APAC:** http://dados.apac.pe.gov.br:41120/dadosApac/ — chuva diária do Recife (temperatura de apoio: Open-Meteo archive)
 - **ESIG:** https://esigportal2.recife.pe.gov.br — polígonos dos 94 bairros e ZEIS

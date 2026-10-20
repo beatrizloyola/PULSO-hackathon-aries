@@ -1,69 +1,36 @@
 # PULSO Backend
 
-Backend Python (FastAPI + XGBoost) para priorização operacional da Vigilância em Saúde de Recife.
+API **Flask** com XGBoost para previsão de casos de dengue e priorização dos
+94 bairros de Recife. Usa chuva do portal APAC, temperatura histórica do
+Open-Meteo e notificações SINAN do catálogo de Dados Abertos do Recife.
 
-## Stack
-
-- **FastAPI** — API REST
-- **XGBoost** — Modelo ML de priorização (94 bairros)
-- **Pandas / GeoPandas** — ETL e GIS (spatial join ZEIS)
-- **Requests** — Consumo de APIs externas (CKAN Recife, INMET)
-
-## Como rodar
-
-### 1. Setup inicial
+## Executar (Linux, Python 3.12)
 
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate   # Windows
+python3.12 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
+python -m app.main
 ```
 
-### 2. Download e processamento de dados
+Servidor em `http://localhost:8000`. A coleta é iniciada em segundo plano e
+renovada diariamente por padrão. A API continua usando o último conjunto
+válido enquanto a coleta acontece. Configuração, metodologia e testes em
+[DADOS_APAC.md](DADOS_APAC.md).
 
-```bash
-python scripts/download_references.py   # Baixa CSVs e GeoJSON do CKAN
-python scripts/build_bairros_lookup.py  # GIS: ZEIS × 94 bairros
-python scripts/generate_synthetic_data.py  # 9.776 registros sintéticos
-python scripts/train_model.py          # Treina XGBoost
-```
+## Endpoints
 
-### 3. Rodar API
+| Método | Rota | Conteúdo |
+|---|---|---|
+| GET | `/health` | Disponibilidade do modelo e lookup |
+| GET | `/bairros` | Bairros, distrito, RPA e ZEIS |
+| POST | `/prioridade` | Ranking, semanas disponíveis, fontes, data da coleta e avisos |
+| GET | `/prioridade/<bairro_id>` | Detalhe de bairro |
+| GET | `/mapa` | GeoJSON com o mesmo ranking |
+| POST | `/prioridade/explicacao` | Contribuições do modelo de contagem, em escala log(casos) |
 
-```bash
-uvicorn app.main:app --reload --port 8000
-```
-
-Swagger UI: http://localhost:8000/docs
-
-## Endpoints principais
-
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/health` | Status do backend |
-| GET | `/bairros` | Lista dos 94 bairros com DS, RPA, ZEIS |
-| POST | `/prioridade` | Ranking dos 94 bairros por score ML |
-| GET | `/prioridade/{bairro_id}` | Detalhe de um bairro |
-| POST | `/prioridade/explicacao` | Decomposição XGBoost por feature |
-
-## Variáveis de ambiente
-
-```bash
-CKAN_BASE_URL=https://dados.recife.pe.gov.br
-CACHE_TTL=3600
-```
-
-## Fontes de dados
-
-- **Dengue**: [Portal de Dados Abertos do Recife](https://dados.recife.pe.gov.br/dataset/casos-de-dengue-zika-e-chikungunya)
-- **Distritos Sanitários**: [dados.recife.pe.gov.br/dataset/distritos-sanitarios](https://dados.recife.pe.gov.br/dataset/distritos-sanitarios)
-- **Zoneamento (ZEIS)**: [dados.recife.pe.gov.br/dataset/zoneamento](https://dados.recife.pe.gov.br/dataset/zoneamento)
-- **Clima (INMET)**: [bdmep.inmet.gov.br](https://bdmep.inmet.gov.br/)
-
-## Notas
-
-- O modelo é treinado inicialmente com **dados sintéticos** (fórmula atual + ruído).
-- Os labels reais devem ser fornecidos pela **SEVS** para recalibrar via `/retrain`.
-- Fallback: se CKAN/INMET estiverem fora, usa cache local + flag `stale_data`.
+Em `/prioridade`, omita `semana_id` para a última semana com dados suficientes.
+Informe `YYYY-Wnn` para consultar outra semana retornada em `semanas_disponiveis`.
+`horizonte` aceita 1 a 4. Semana sem cobertura retorna HTTP 400; ausência de um
+histórico suficiente retorna HTTP 503.

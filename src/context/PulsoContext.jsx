@@ -25,11 +25,17 @@ export function PulsoProvider({ children }) {
   const [telaAtiva, setTelaAtiva] = useState("visao-geral");
   const [territoriosOrdenados, setTerritoriosOrdenados] = useState([]);
   const [apiStatus, setApiStatus] = useState({ loading: true, error: null });
+  const [semanasDisponiveis, setSemanasDisponiveis] = useState([]);
+  const [dadosStatus, setDadosStatus] = useState(null);
+  const [validacao, setValidacao] = useState({});
 
   // Busca prioridades do backend no mount e a cada mudança de semana/capacidade
   useEffect(() => {
     let cancelled = false;
+    let running = false;
     async function load() {
+      if (running) return;
+      running = true;
       try {
         setApiStatus({ loading: true, error: null });
         const data = await fetchPrioridade({
@@ -67,19 +73,26 @@ export function PulsoProvider({ children }) {
           setoresPrioritarios: ["Setor 01"],
         }));
         setTerritoriosOrdenados(mapped);
+        setSemanasDisponiveis(data.semanas_disponiveis || []);
+        setDadosStatus(data.dados || null);
+        setValidacao(data.validacao || {});
         setContextoPrevisao({
           referenciaCod: data.semana_cod ?? null,
           alvoCod: data.semana_alvo_cod ?? null,
+          horizonte: data.horizonte ?? 1,
         });
         setApiStatus({ loading: false, error: null });
       } catch (e) {
         if (cancelled) return;
         console.error("[PulsoContext] Falha ao carregar prioridades da API:", e);
         setApiStatus({ loading: false, error: e.message });
+      } finally {
+        running = false;
       }
     }
     load();
-    return () => { cancelled = true; };
+    const timer = setInterval(load, 5 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(timer); };
   }, [capacidadeEquipes, semanaSelecionada, horizonteSelecionado]);
 
   const cobertura = useMemo(() => {
@@ -120,6 +133,10 @@ export function PulsoProvider({ children }) {
     horizonteSelecionado,
     setHorizonteSelecionado,
     contextoPrevisao,
+    semanasDisponiveis,
+    dadosStatus,
+    apiStatus,
+    validacao,
     territorioSelecionado,
     setTerritorioSelecionado,
     decisoes,

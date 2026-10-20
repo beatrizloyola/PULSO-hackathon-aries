@@ -1,8 +1,5 @@
-// Configuração de dados do app.
-// Ano com dados reais do SINAN em cache. A semana epidemiológica default é
-// uma semana em plena temporada (dados robustos) para a visão inicial.
-export const ANO_DADOS = 2025;
-export const SEMANA_PADRAO = `${ANO_DADOS}-W20`;
+// O backend resolve a última semana com cobertura suficiente nas fontes.
+export const SEMANA_PADRAO = "";
 
 // Horizontes de previsão (semanas à frente) e skill medido no backtest
 // (precisão@10 vs baseline de persistência). Serve para a UI mostrar
@@ -17,8 +14,8 @@ export function formatSemana(cod) {
 
 export const HORIZONTE_PADRAO = 1;
 export const HORIZONTES = [
-  { valor: 1, label: "próxima semana", skill: 0.64 },
-  { valor: 2, label: "2 semanas", skill: 0.63 },
-  { valor: 3, label: "3 semanas", skill: 0.59 },
-  { valor: 4, label: "4 semanas", skill: 0.59 },
+  { valor: 1, label: "próxima semana" },
+  { valor: 2, label: "2 semanas" },
+  { valor: 3, label: "3 semanas" },
+  { valor: 4, label: "4 semanas" },
 ];

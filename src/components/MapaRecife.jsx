@@ -25,19 +25,25 @@ function styleFeature(feature) {
 }
 
 export default function MapaRecife({ onBairroClick }) {
-  const { semanaSelecionada, horizonteSelecionado } = usePulso();
+  const { contextoPrevisao, dadosStatus } = usePulso();
+  const { referenciaCod, alvoCod } = contextoPrevisao;
+  const coletadoEm = dadosStatus?.coletado_em;
   const [geojson, setGeojson] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!referenciaCod || !alvoCod) return;
     let cancelled = false;
     setLoading(true);
     const qs = new URLSearchParams({
-      semana_id: semanaSelecionada,
-      horizonte: String(horizonteSelecionado),
+      semana_id: `${Math.floor(referenciaCod / 100)}-W${String(referenciaCod % 100).padStart(2, "0")}`,
+      horizonte: String(contextoPrevisao.horizonte),
     });
     fetch(`${API_BASE}/mapa?${qs}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Falha no mapa: ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         if (cancelled) return;
         setGeojson(data);
@@ -46,10 +52,11 @@ export default function MapaRecife({ onBairroClick }) {
       .catch((err) => {
         if (cancelled) return;
         console.error("[MapaRecife] Erro ao carregar GeoJSON:", err);
+        setGeojson(null);
         setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [semanaSelecionada, horizonteSelecionado]);
+  }, [referenciaCod, alvoCod, contextoPrevisao.horizonte, coletadoEm]);
 
   if (loading) {
     return <div className="mapa-loading">Carregando mapa...</div>;
@@ -72,7 +79,7 @@ export default function MapaRecife({ onBairroClick }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <GeoJSON
-          key={`${semanaSelecionada}-${horizonteSelecionado}`}
+          key={`${referenciaCod}-${alvoCod}-${coletadoEm}`}
           data={geojson}
           style={styleFeature}
           onEachFeature={(feature, layer) => {

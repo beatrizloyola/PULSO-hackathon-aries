@@ -1,13 +1,11 @@
 import json
-from pathlib import Path
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from app import config
 from app.services import model as model_svc
-from app.services import etl
-from app.services import forecast_serving
+from app.services import forecast_serving, data_sync
 
 
 # Carregar GeoJSON dos bairros do ESIG (polígonos reais) em memória no startup
@@ -28,17 +26,21 @@ CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
 print("🚀 [PULSO Backend] Iniciando...")
 if not config.BAIRROS_LOOKUP_FILE.exists():
     print("   ⚠️  bairros_lookup.json não encontrado.")
-if not config.TRAINING_DATA_FILE.exists():
-    print("   ⚠️  training_data.csv não encontrado.")
-if not config.MODEL_FILE.exists():
-    print("   ⚠️  modelo não encontrado. Treinando automaticamente...")
-    if config.TRAINING_DATA_FILE.exists():
-        model_svc._train_from_synthetic()
-    else:
-        print("   ❌ Não foi possível treinar — falta training_data.csv")
-else:
-    model_svc.load_model()
+for horizon in config.FORECAST_HORIZONS:
+    if not config.forecast_model_file(horizon).exists():
+        print(f"   ⚠️  modelo do horizonte {horizon} ausente; execute python -m scripts.train_forecast")
 print("✅ [PULSO Backend] Pronto!")
+data_sync.start_background_sync()
+
+
+@app.errorhandler(forecast_serving.DadosIndisponiveis)
+def dados_indisponiveis(error):
+    return jsonify({"error": str(error)}), 503
+
+
+@app.errorhandler(ValueError)
+def dados_invalidos(error):
+    return jsonify({"error": str(error)}), 400
 
 def _to_float(val):
     return float(val) if val is not None else 0.0
@@ -48,7 +50,7 @@ def _to_int(val):
 
 @app.route("/health")
 def health():
-    model_ok = config.MODEL_FILE.exists()
+    model_ok = all(config.forecast_model_file(h).exists() for h in config.FORECAST_HORIZONS)
     lookup_ok = config.BAIRROS_LOOKUP_FILE.exists()
     return jsonify({
         "status": "ok" if (model_ok and lookup_ok) else "degraded",
@@ -69,6 +71,8 @@ def calcular_prioridade():
     top_n = req.get("top_n", 8)
     capacidade = req.get("capacidade", 3)
     horizonte = int(req.get("horizonte", 1))
+    if horizonte not in config.FORECAST_HORIZONS:
+        raise ValueError("Horizonte deve estar entre 1 e 4 semanas.")
 
     df_features, meta = forecast_serving.build_prioridades(semana_id, horizon=horizonte)
     df_features["classificacao"] = df_features["score"].apply(model_svc.classificar_prioridade)
@@ -113,7 +117,11 @@ def calcular_prioridade():
         }
 
     return jsonify({
-        "semana_id": semana_id or "atual",
+        "semana_id": f"{meta['semana_cod'] // 100}-W{meta['semana_cod'] % 100:02d}",
+        "semanas_disponiveis": meta["semanas_disponiveis"],
+        "dados": meta["dados"],
+        "fontes": {"clima": meta["fonte_clima"], "casos": meta["fonte_casos"]},
+        "validacao": data_sync.read_json(config.FORECAST_META_FILE).get("backtest", {}).get("metrics", {}),
         "semana_cod": meta["semana_cod"],
         "semana_alvo_cod": meta["semana_alvo_cod"],
         "horizonte": meta["horizonte"],
@@ -168,18 +176,12 @@ def explicacao():
     req = request.get_json(silent=True) or {}
     bairro_id = req.get("bairro_id")
     semana_id = req.get("semana_id")
-    df_features = etl.build_features(semana_id)
-    result = model_svc.explain_prediction(bairro_id, df_features)
-    # Converter contribuições para float nativo
-    if "contribuicoes" in result:
-        for c in result["contribuicoes"]:
-            c["contribuicao"] = _to_float(c["contribuicao"])
-            c["contribuicao_percentual"] = _to_float(c["contribuicao_percentual"])
-    if "base_value" in result:
-        result["base_value"] = _to_float(result["base_value"])
-    if "predicao_final" in result:
-        result["predicao_final"] = _to_float(result["predicao_final"])
-    return jsonify(result)
+    horizonte = int(req.get("horizonte", 1))
+    df_features, meta = forecast_serving.build_prioridades(semana_id, horizon=horizonte)
+    result = model_svc.explain_forecast(bairro_id, df_features, horizonte)
+    if "error" in result:
+        return jsonify(result), 404
+    return jsonify({**result, "semana_cod": meta["semana_cod"], "dados": meta["dados"]})
 
 @app.route("/mapa")
 def mapa_prioridade():

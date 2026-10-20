@@ -5,10 +5,15 @@ import pandas as pd
 from epiweeks import Week
 
 from app import config
-from app.services import forecast_features as ff
+from app.services import forecast_features as ff, data_sync
 from app.services import model as model_svc
 
 _featured_panel: Optional[pd.DataFrame] = None
+_panel_signature = None
+
+
+class DadosIndisponiveis(RuntimeError):
+    pass
 
 
 def _clamp(v, lo=0.0, hi=100.0):
@@ -23,23 +28,36 @@ def _semana_alvo(semana_cod: int, horizon: int) -> int:
 
 
 def get_featured_panel() -> pd.DataFrame:
-    """Painel com features, computado uma vez e reutilizado entre requisições."""
-    global _featured_panel
-    if _featured_panel is None:
-        panel = ff.build_panel(config.FORECAST_ANOS)
-        _featured_panel = ff.add_features(panel)
+    """Recarrega quando a coleta publica um snapshot ou muda o cache local."""
+    global _featured_panel, _panel_signature
+    files = [config.SYNC_DIR / "current.json", config.BAIRROS_LOOKUP_FILE]
+    files += sorted(config.CACHE_DIR.glob("apac_clima_semana_*.csv"))
+    files += sorted(config.CACHE_DIR.glob("dengue_*.csv"))
+    signature = tuple((str(p), p.stat().st_mtime_ns) for p in files if p.exists())
+    if _featured_panel is None or signature != _panel_signature:
+        panel = ff.add_features(ff.build_panel())
+        valid = panel[ff.FEATURES].notna().all(axis=1)
+        # Uma semana só pode compor o ranking se todos os bairros forem comparáveis.
+        eligible = valid.groupby(panel["semana"]).all()
+        panel = panel[panel["semana"].isin(eligible[eligible].index)]
+        if panel.empty:
+            raise DadosIndisponiveis("Não há semanas com dados completos e histórico suficiente para previsão.")
+        _featured_panel, _panel_signature = panel, signature
     return _featured_panel
 
 
 def _parse_semana(semana_id: Optional[str], panel: pd.DataFrame) -> int:
     """semana_id 'YYYY-Wnn' -> código YYYYWW; default = última semana disponível."""
-    if semana_id:
-        parts = semana_id.split("-W")
-        ano = int(parts[0])
-        semana = int(parts[1]) if len(parts) > 1 else 1
-        cod = ano * 100 + semana
-        if cod in panel["semana"].values:
-            return cod
+    if semana_id and semana_id != "atual":
+        try:
+            ano, semana = map(int, semana_id.split("-W"))
+            Week(ano, semana, system="cdc")
+            cod = ano * 100 + semana
+        except (ValueError, AttributeError):
+            raise ValueError("Semana inválida; use YYYY-Wnn ou omita para a última disponível.") from None
+        if cod not in panel["semana"].values:
+            raise ValueError("Semana sem dados completos para previsão; escolha uma semana disponível.")
+        return cod
     return int(panel["semana"].max())
 
 
@@ -49,14 +67,13 @@ def build_prioridades(semana_id: Optional[str] = None,
     Retorna (df, meta). df tem uma linha por bairro com score, componentes e
     metadados (inclui casos_previstos). meta traz semana/horizonte resolvidos.
     """
+    if horizon not in config.FORECAST_HORIZONS:
+        raise ValueError("Horizonte deve estar entre 1 e 4 semanas.")
     panel = get_featured_panel()
     semana_cod = _parse_semana(semana_id, panel)
 
     cur = panel[panel["semana"] == semana_cod].copy()
     cur["bairro_nome"] = cur["bairro"]
-    # segurança: se features faltarem (semana muito no início), usa 0
-    cur[ff.FEATURES] = cur[ff.FEATURES].fillna(0.0)
-
     casos_prev = model_svc.predict_casos(cur, horizon=horizon).astype("float64")
     cur["casos_previstos"] = np.round(casos_prev, 1)
     cur["score"] = np.round(model_svc.casos_para_score(casos_prev)).astype(int)
@@ -87,6 +104,8 @@ def build_prioridades(semana_id: Optional[str] = None,
         "semana_alvo_cod": int(alvo_cod),
         "horizonte": horizon,
         "fonte_casos": "SINAN (cache)",
-        "fonte_clima": "Open-Meteo",
+        "fonte_clima": "APAC (chuva) + Open-Meteo (temperatura)",
+        "semanas_disponiveis": sorted(int(w) for w in panel["semana"].unique()),
+        "dados": data_sync.data_status(int(panel["semana"].max()), panel.attrs.get("snapshot_meta", {})),
     }
     return cur.reset_index(drop=True), meta

@@ -217,6 +217,22 @@
   width: 100%;
 }
 
+.dados-status {
+  padding: 10px 24px;
+  font-size: 12px;
+  line-height: 1.6;
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.dados-status--aviso {
+  background: #fff7e6;
+  color: #754c0c;
+}
+
+.dados-status a { color: inherit; text-decoration: underline; }
+
 /* Overlay para sidebar mobile */
 .sidebar-overlay {
   display: none;

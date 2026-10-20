@@ -1,5 +1,5 @@
 import { usePulso } from "../context/PulsoContext";
-import { ANO_DADOS, HORIZONTES, formatSemana } from "../config";
+import { HORIZONTES, formatSemana } from "../config";
 
 const TITULOS = {
   "visao-geral": "Central de Priorização Territorial",
@@ -10,21 +10,18 @@ const TITULOS = {
   "acoes-resultados": "Ações e Resultados",
 };
 
-// Semanas epidemiológicas disponíveis no ano de dados (SINAN 1..52).
-const SEMANAS = Array.from({ length: 52 }, (_, i) => {
-  const n = i + 1;
-  const nn = String(n).padStart(2, "0");
-  return { id: `${ANO_DADOS}-W${nn}`, label: `${nn} · ${ANO_DADOS}` };
-});
-
 export default function Header() {
   const {
     telaAtiva, territorioSelecionado,
     semanaSelecionada, setSemanaSelecionada,
     horizonteSelecionado, setHorizonteSelecionado,
-    contextoPrevisao,
+    contextoPrevisao, semanasDisponiveis, dadosStatus, apiStatus, validacao,
   } = usePulso();
   const titulo = TITULOS[telaAtiva] ?? "PULSO";
+  const semanas = [...semanasDisponiveis].reverse().map((cod) => ({
+    id: `${Math.floor(cod / 100)}-W${String(cod % 100).padStart(2, "0")}`,
+    label: formatSemana(cod),
+  }));
 
   // Breadcrumb: nas telas de dados, mostra explicitamente O QUE está sendo
   // previsto (semana-alvo) e A PARTIR DE QUAL dado (semana de referência).
@@ -39,6 +36,7 @@ export default function Header() {
   }
 
   return (
+    <>
     <header className="app-header">
       <div className="app-header__left">
         <h1>{titulo}</h1>
@@ -52,7 +50,8 @@ export default function Header() {
             value={semanaSelecionada}
             onChange={(e) => setSemanaSelecionada(e.target.value)}
           >
-            {SEMANAS.map((s) => (
+            <option value="">Última disponível</option>
+            {semanas.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.label}
               </option>
@@ -68,7 +67,10 @@ export default function Header() {
           >
             {HORIZONTES.map((h) => (
               <option key={h.valor} value={h.valor}>
-                {h.label} · skill {Math.round(h.skill * 100)}%
+                {h.label}
+                {validacao[`h${h.valor}`]?.precisao_k_xgb != null
+                  ? ` · precisão@10 ${Math.round(validacao[`h${h.valor}`].precisao_k_xgb * 100)}%`
+                  : ""}
               </option>
             ))}
           </select>
@@ -76,5 +78,19 @@ export default function Header() {
         <div className="app-header__avatar">RS</div>
       </div>
     </header>
+    <div className={`dados-status${dadosStatus?.desatualizados || apiStatus.error ? " dados-status--aviso" : ""}`} role="status">
+      <div>
+        Chuva: <a href="http://dados.apac.pe.gov.br:41120/dadosApac/" target="_blank" rel="noreferrer">APAC</a>
+        {" · Temperatura: Open-Meteo · Casos: SINAN/Recife"}
+        {dadosStatus?.coletado_em && ` · Coleta: ${new Date(dadosStatus.coletado_em).toLocaleString("pt-BR", { timeZone: "America/Recife" })}`}
+      </div>
+      {dadosStatus?.casos_ate && <div>
+        {`Cobertura publicada: chuva até ${dadosStatus.chuva_ate?.split("-").reverse().join("/") || "—"} · notificações até ${dadosStatus.casos_ate.split("-").reverse().join("/")}`}
+      </div>}
+      {apiStatus.loading && <div>Consultando dados disponíveis…</div>}
+      {apiStatus.error && <div>Não foi possível atualizar a previsão: {apiStatus.error}</div>}
+      {dadosStatus?.avisos?.map((aviso) => <div key={aviso}>{aviso}</div>)}
+    </div>
+    </>
   );
 }

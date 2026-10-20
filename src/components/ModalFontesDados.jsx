@@ -6,19 +6,19 @@ const FONTES = [
     url: "https://dados.recife.pe.gov.br",
     tipo: "Dados epidemiológicos",
     descricao:
-      "Notificações de dengue (SINAN) agregadas por bairro e semana epidemiológica. Inclui colunas NM_BAIRRO, SEM_NOT, ID_MUNICIP.",
+      "Notificações de dengue (SINAN) agregadas por bairro e semana epidemiológica a partir de NM_BAIRRO, DT_NOTIFIC e ID_MUNICIP.",
     atualizacao: "Semanal",
-    registros: "~9.187 registros (2025)",
+    registros: "Cobertura conforme os arquivos publicados no catálogo",
     variaveis: ["casos_semana_atual", "casos_semana_anterior", "tendencia_epidemiologica"],
   },
   {
-    nome: "INMET / BDMEP",
-    url: "https://bdmep.inmet.gov.br",
+    nome: "APAC - Agência Pernambucana de Águas e Clima",
+    url: "http://dados.apac.pe.gov.br:41120/dadosApac/",
     tipo: "Dados climáticos",
     descricao:
-      "Precipitação acumulada (mm) da estação meteorológica de Recife. Usado para calcular condições climáticas e risco de proliferação.",
-    atualizacao: "Diária",
-    registros: "Dados de chuva por semana",
+      "Histórico Pluviométrico vinculado no portal Dados APAC. Média diária das estações de Recife e soma por semana epidemiológica. Leituras ausentes não são consideradas chuva zero. Temperatura histórica de apoio via Open-Meteo.",
+    atualizacao: "Coleta diária; fonte e data da última coleta no cabeçalho",
+    registros: "Somente semanas com sete dias de dados válidos e histórico suficiente",
     variaveis: ["chuva_mm", "condicoes_climaticas"],
   },
   {
@@ -42,22 +42,16 @@ const FONTES = [
     variaveis: ["vulnerabilidade_territorial", "historico"],
   },
   {
-    nome: "Training Data (training_data.csv)",
+    nome: "Modelos de previsão e validação temporal",
     url: "Local",
     tipo: "Dataset de treinamento",
     descricao:
-      "Dataset consolidado com features normalizadas (0-100) usado para treinar o modelo XGBoost de priorização de territórios.",
+      "Painel de casos e clima por bairro e semana. Os modelos estimam casos para uma a quatro semanas à frente; métricas e fontes são registradas em forecast_meta.json.",
     atualizacao: "Por treinamento",
-    registros: "94 amostras x 8 features",
+    registros: "94 bairros por semana; 18 variáveis por modelo",
     variaveis: [
-      "tendencia_epidemiologica",
-      "condicoes_climaticas",
-      "focos_identificados",
-      "vulnerabilidade_territorial",
-      "historico",
-      "vizinhos_semana_passada",
-      "ds_encoded",
-      "semana_ano",
+      "casos", "casos_lag1", "roll4_mean", "chuva_mm", "chuva_roll4",
+      "temp_media", "temp_roll4", "vizinhos_ds",
     ],
   },
 ];
@@ -153,14 +147,14 @@ export default function ModalFontesDados({ isOpen, onClose }) {
 
           <div className="modal-footer-info">
             <p>
-              <strong>Modelo:</strong> XGBoost Regressor |{" "}
-              <strong>Features:</strong> 8 |{" "}
-              <strong>Saída:</strong> Score de prioridade (0-100) |{" "}
-              <strong>MAE:</strong> ~4.04
+              <strong>Modelo:</strong> XGBoost de contagem |{" "}
+              <strong>Variáveis:</strong> 18 |{" "}
+              <strong>Saída:</strong> Casos previstos e índice de prioridade (0–100) |{" "}
+              <strong>Horizontes:</strong> 1 a 4 semanas
             </p>
             <p style={{ marginTop: 8, fontSize: 12, color: "var(--text-secondary)" }}>
-              Dados atualizados automaticamente via ETL a cada execução do pipeline.
-              Fallback sintético ativado quando fontes externas estão indisponíveis.
+              A coleta das fontes ocorre periodicamente em segundo plano.{" "}
+              Se uma coleta falhar, o último conjunto válido é preservado e a interface informa o atraso.
             </p>
           </div>
         </div>
