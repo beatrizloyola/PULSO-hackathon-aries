@@ -9,8 +9,6 @@ CACHE_DIR = DATA_DIR / "cache"
 CKAN_BASE_URL = os.getenv("CKAN_BASE_URL", "https://dados.recife.pe.gov.br")
 CKAN_API_URL = f"{CKAN_BASE_URL}/api/3"
 
-INMET_BDMEP_URL = os.getenv("INMET_BDMEP_URL", "https://bdmep.inmet.gov.br/webservices")
-
 # Temperatura histórica de apoio; chuva vem exclusivamente do portal APAC.
 OPENMETEO_ARCHIVE_URL = os.getenv(
     "OPENMETEO_ARCHIVE_URL", "https://archive-api.open-meteo.com/v1/archive")
@@ -35,21 +33,8 @@ DATASET_ZONEAMENTO_ID = "zoneamento"  # dataset slug
 
 # Arquivos de referência
 BAIRROS_LOOKUP_FILE = DATA_DIR / "bairros_lookup.json"
-TRAINING_DATA_FILE = DATA_DIR / "training_data.csv"
-MODEL_FILE = MODELS_DIR / "xgb_prioridade.json"
 
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL", "3600"))
-
-# Configurações do modelo (legado — priorização por fórmula sintética)
-XGB_PARAMS = {
-    "n_estimators": 100,
-    "max_depth": 4,
-    "learning_rate": 0.1,
-    "subsample": 0.8,
-    "colsample_bytree": 0.8,
-    "objective": "reg:squarederror",
-    "random_state": 42,
-}
 
 # --- Previsão de casos (forecast) ---
 FORECAST_HORIZONS = [1, 2, 3, 4]
