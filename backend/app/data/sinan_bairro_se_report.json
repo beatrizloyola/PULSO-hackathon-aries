@@ -1,0 +1,210 @@
+{
+  "anos": {
+    "2016": {
+      "registros_total_ckan": 18612,
+      "registros_recife": 13702,
+      "registros_com_semana": 13702,
+      "casos_agregados": 13403,
+      "bairros_distintos": 99,
+      "semanas_distintas": 62,
+      "pct_sem_bairro": 2.23,
+      "pct_sem_geocod": 5.01,
+      "bairros_nao_mapeados": [
+        "CARMELITAS",
+        "CENTRO",
+        "JARDIM TERESOPOLIS",
+        "JARDIN TEREZ34POLIS",
+        "PE 05",
+        "TA"
+      ],
+      "col_bairro": "no_bairro_residencia",
+      "col_geocod": "co_bairro_residencia",
+      "col_semana": "ds_semana_notificacao"
+    },
+    "2017": {
+      "registros_total_ckan": 2454,
+      "registros_recife": 966,
+      "registros_com_semana": 966,
+      "casos_agregados": 966,
+      "bairros_distintos": 76,
+      "semanas_distintas": 59,
+      "pct_sem_bairro": 0.0,
+      "pct_sem_geocod": 0.0,
+      "bairros_nao_mapeados": [],
+      "col_bairro": "no_bairro_residencia",
+      "col_geocod": "co_bairro_residencia",
+      "col_semana": "ds_semana_notificacao"
+    },
+    "2018": {
+      "registros_total_ckan": 2687,
+      "registros_recife": 1219,
+      "registros_com_semana": 1219,
+      "casos_agregados": 1215,
+      "bairros_distintos": 82,
+      "semanas_distintas": 60,
+      "pct_sem_bairro": 0.41,
+      "pct_sem_geocod": 0.41,
+      "bairros_nao_mapeados": [
+        "BOLA NA REDE"
+      ],
+      "col_bairro": "no_bairro_residencia",
+      "col_geocod": "co_bairro_residencia",
+      "col_semana": "ds_semana_notificacao"
+    },
+    "2019": {
+      "registros_total_ckan": 7308,
+      "registros_recife": 4699,
+      "registros_com_semana": 4699,
+      "casos_agregados": 4649,
+      "bairros_distintos": 101,
+      "semanas_distintas": 57,
+      "pct_sem_bairro": 1.28,
+      "pct_sem_geocod": 2.28,
+      "bairros_nao_mapeados": [
+        "ALTO DA BONDADE",
+        "ALTO SANTA ISABEL",
+        "ALUIZIO PINTO",
+        "BREJO DE GUABIRABA",
+        "CENTRO",
+        "GUARARAPES",
+        "JD.JORDAO",
+        "PACHECO",
+        "RUA JERONIMO",
+        "SITIO NOVO"
+      ],
+      "col_bairro": "no_bairro_residencia",
+      "col_geocod": "co_bairro_residencia",
+      "col_semana": "ds_semana_notificacao"
+    },
+    "2020": {
+      "registros_total_ckan": 3540,
+      "registros_recife": 1620,
+      "registros_com_semana": 1620,
+      "casos_agregados": 1612,
+      "bairros_distintos": 83,
+      "semanas_distintas": 53,
+      "pct_sem_bairro": 0.56,
+      "pct_sem_geocod": 0.56,
+      "bairros_nao_mapeados": [
+        "P"
+      ],
+      "col_bairro": "no_bairro_residencia",
+      "col_geocod": "co_bairro_residencia",
+      "col_semana": "ds_semana_notificacao"
+    },
+    "2021": {
+      "registros_total_ckan": 10898,
+      "registros_recife": 7398,
+      "registros_com_semana": 7398,
+      "casos_agregados": 7398,
+      "bairros_distintos": 93,
+      "semanas_distintas": 53,
+      "pct_sem_bairro": 0.0,
+      "pct_sem_geocod": 0.0,
+      "bairros_nao_mapeados": [],
+      "col_bairro": "NM_BAIRRO",
+      "col_geocod": "ID_BAIRRO",
+      "col_semana": "SEM_NOT"
+    },
+    "2022": {
+      "registros_total_ckan": 2906,
+      "registros_recife": 1354,
+      "registros_com_semana": 1354,
+      "casos_agregados": 1354,
+      "bairros_distintos": 85,
+      "semanas_distintas": 52,
+      "pct_sem_bairro": 0.0,
+      "pct_sem_geocod": 0.07,
+      "bairros_nao_mapeados": [],
+      "col_bairro": "NM_BAIRRO",
+      "col_geocod": "ID_BAIRRO",
+      "col_semana": "SEM_NOT"
+    },
+    "2023": {
+      "registros_total_ckan": 3523,
+      "registros_recife": 3523,
+      "registros_com_semana": 3523,
+      "casos_agregados": 3522,
+      "bairros_distintos": 92,
+      "semanas_distintas": 52,
+      "pct_sem_bairro": 0.03,
+      "pct_sem_geocod": 0.17,
+      "bairros_nao_mapeados": [],
+      "col_bairro": "nm_bairro",
+      "col_geocod": "id_bairro",
+      "col_semana": "sem_not"
+    },
+    "2024": {
+      "registros_total_ckan": 10548,
+      "registros_recife": 2607,
+      "registros_com_semana": 2607,
+      "casos_agregados": 2607,
+      "bairros_distintos": 76,
+      "semanas_distintas": 53,
+      "pct_sem_bairro": 0.0,
+      "pct_sem_geocod": 0.0,
+      "bairros_nao_mapeados": [],
+      "col_bairro": "NM_BAIRRO",
+      "col_geocod": "ID_BAIRRO",
+      "col_semana": "SEM_NOT"
+    },
+    "2025": {
+      "registros_total_ckan": 9187,
+      "registros_recife": 5654,
+      "registros_com_semana": 5654,
+      "casos_agregados": 5639,
+      "bairros_distintos": 109,
+      "semanas_distintas": 53,
+      "pct_sem_bairro": 0.57,
+      "pct_sem_geocod": 0.81,
+      "bairros_nao_mapeados": [
+        "ALTO DA BONDADE",
+        "ALTO JOS DO PINHO",
+        "ALTO JOS' DO PINHO",
+        "BREJ",
+        "CAIXA D' GUA",
+        "COQUEIRO SECO",
+        "CORREGO JENIPAPO",
+        "FUNDO",
+        "GUAB",
+        "JAGUARANA",
+        "JARDIM ATLANTICO",
+        "JIQU]",
+        "MIRUEIRA",
+        "RESIDENCIAL",
+        "TEJUCOPAPO",
+        "VASC",
+        "VASCO"
+      ],
+      "col_bairro": "NM_BAIRRO",
+      "col_geocod": "ID_BAIRRO",
+      "col_semana": "SEM_NOT"
+    }
+  },
+  "epidemic_years": [
+    2016,
+    2021,
+    2025
+  ],
+  "metodo_anos_epidemicos": "total anual >= 3º quartil (p75) da série 2016-2025",
+  "threshold_casos": 5391.5,
+  "quartis": {
+    "p25": 1418.5,
+    "p50": 3064.5,
+    "p75": 5391.5
+  },
+  "media_casos_anual": 4236.5,
+  "desvio_padrao": 3665.3,
+  "totais_por_ano": {
+    "2016": 13403,
+    "2017": 966,
+    "2018": 1215,
+    "2019": 4649,
+    "2020": 1612,
+    "2021": 7398,
+    "2022": 1354,
+    "2023": 3522,
+    "2024": 2607,
+    "2025": 5639
+  }
+}

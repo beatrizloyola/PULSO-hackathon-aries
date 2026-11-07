@@ -55,6 +55,21 @@ Para enviar os runs a um servidor MLflow do time, configure os secrets
 `MLFLOW_TRACKING_URI` (e, se houver autenticação, `MLFLOW_TRACKING_USERNAME`
 / `MLFLOW_TRACKING_PASSWORD`). Sem eles, o tracking é local ao job.
 
+## Histórico SINAN por bairro × semana (2016–2025)
+
+Gera a série `app/data/sinan_bairro_se_2016_2025.csv` e o relatório
+`app/data/sinan_bairro_se_report.json` a partir dos CSVs anuais de dengue do
+CKAN. Os dados brutos baixados ficam em `app/data/cache/` e não são
+versionados.
+
+```bash
+cd backend
+python scripts/build_sinan_historico.py
+```
+
+Metodologia, colunas, filtros e limitações estão no
+[data card](app/data/sinan_bairro_se_data_card.md).
+
 ## Endpoints
 
 | Método | Rota | Conteúdo |
